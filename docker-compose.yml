@@ -1,0 +1,32 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: brawl
+      POSTGRES_PASSWORD: brawl
+      POSTGRES_DB: brawl
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5434:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U brawl"]
+      interval: 3s
+      timeout: 3s
+      retries: 5
+
+  app:
+    build: .
+    ports:
+      - "8888:8888"
+    environment:
+      PGHOST: postgres
+      PGUSER: brawl
+      PGPASSWORD: brawl
+      PGDATABASE: brawl
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:
