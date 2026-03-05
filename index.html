@@ -632,6 +632,7 @@
         <a href="#" class="nav-link" data-view="brawlers">Мои бравлеры</a>
         <a href="#" class="nav-link" data-view="leaderboard">Лидеры</a>
         <a href="#" class="nav-link" data-view="prob">Шансы</a>
+        <a href="/english/" class="nav-link" target="_blank" rel="noopener">English</a>
         <a href="#" class="nav-link" data-view="admin" id="nav-admin" style="display:none;">Админ</a>
         <a href="#" class="nav-link nav-logout" id="nav-logout">Выход</a>
       </nav>
@@ -1056,8 +1057,11 @@
 
       document.querySelectorAll('.nav-link').forEach(link => {
         link.addEventListener('click', function (e) {
-          e.preventDefault();
           if (this.id === 'nav-logout') return;
+          // Ссылка на другой раздел (например /english/) — не перехватывать, дать браузеру перейти
+          var href = this.getAttribute('href') || '';
+          if (href && href !== '#' && href.startsWith('/')) { return; }
+          e.preventDefault();
           const view = this.dataset.view;
           location.hash = view || '';
           showView(view);

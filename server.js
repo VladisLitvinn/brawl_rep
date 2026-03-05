@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const cookieParser = require('cookie-parser');
 const session = require('express-session');
@@ -138,6 +139,13 @@ async function seedUsers(client) {
   }
 }
 
+// Body parser нужен до роутов, которые читают req.body (в т.ч. /api/english/validate)
+app.use(express.json());
+
+// English Exercise API (Learn words by chunks) — один сервер, отдельный роутер
+const englishApi = require('./english_exercise/Learn_words_by_chunks/server/routes/api');
+app.use('/api/english', englishApi);
+
 app.use(cookieParser());
 app.use(
   session({
@@ -147,8 +155,19 @@ app.use(
     cookie: { httpOnly: true, maxAge: 7 * 24 * 60 * 60 * 1000 },
   })
 );
-app.use(express.json());
 app.use(express.static(path.join(__dirname)));
+
+// English Exercise SPA: статика и fallback для /english
+const englishDist = path.join(__dirname, 'english_dist');
+if (fs.existsSync(englishDist)) {
+  app.use('/english', express.static(englishDist));
+  app.get('/english', (_, res) => res.redirect(301, '/english/'));
+  app.get(/^\/english\/.+/, (_, res) => {
+    res.sendFile(path.join(englishDist, 'index.html'), (err) => {
+      if (err) res.status(500).send('Error');
+    });
+  });
+}
 
 function requireAuth(req, res, next) {
   if (!req.session || !req.session.userId) {
