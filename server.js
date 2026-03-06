@@ -16,7 +16,11 @@ const pool = new Pool({
   user: process.env.PGUSER || process.env.POSTGRES_USER || 'brawl',
   password: process.env.PGPASSWORD || process.env.POSTGRES_PASSWORD || 'brawl',
   database: process.env.PGDATABASE || process.env.POSTGRES_DB || 'brawl',
+  max: Math.max(1, parseInt(process.env.PG_POOL_MAX, 10) || 5),
 });
+
+// Меньше раундов = меньше CPU (для слабого сервера можно BCRYPT_ROUNDS=8)
+const BCRYPT_ROUNDS = Math.min(12, Math.max(8, parseInt(process.env.BCRYPT_ROUNDS, 10) || 10));
 
 const BRAWLERS = JSON.parse(
   fs.readFileSync(path.join(__dirname, 'brawlers.json'), 'utf8')
@@ -109,7 +113,7 @@ const SEED_USERS = [
 ];
 
 async function seedUsers(client) {
-  const hash = await bcrypt.hash(SEED_PASSWORD, 10);
+  const hash = await bcrypt.hash(SEED_PASSWORD, BCRYPT_ROUNDS);
   for (const { username, is_admin, brawlersCount } of SEED_USERS) {
     const r = await client.query(
       'SELECT id FROM users WHERE username = $1',
@@ -156,18 +160,9 @@ app.use(
   })
 );
 app.use(express.static(path.join(__dirname)));
-
-// English Exercise SPA: статика и fallback для /english
-const englishDist = path.join(__dirname, 'english_dist');
-if (fs.existsSync(englishDist)) {
-  app.use('/english', express.static(englishDist));
-  app.get('/english', (_, res) => res.redirect(301, '/english/'));
-  app.get(/^\/english\/.+/, (_, res) => {
-    res.sendFile(path.join(englishDist, 'index.html'), (err) => {
-      if (err) res.status(500).send('Error');
-    });
-  });
-}
+// English Exercise: статика из папки english (один index.html, без сборки)
+app.use('/english', express.static(path.join(__dirname, 'english')));
+app.get('/english', (_, res) => res.redirect(301, '/english/'));
 
 function requireAuth(req, res, next) {
   if (!req.session || !req.session.userId) {
@@ -195,7 +190,7 @@ app.post('/api/auth/register', async (req, res) => {
   if (!username || !password || username.length < 2 || password.length < 4) {
     return res.status(400).json({ error: 'Логин от 2 символов, пароль от 4' });
   }
-  const hash = await bcrypt.hash(password, 10);
+  const hash = await bcrypt.hash(password, BCRYPT_ROUNDS);
   try {
     const r = await pool.query(
       'INSERT INTO users (username, password_hash, tokens, is_admin) VALUES ($1, $2, $3, false) RETURNING id, username, tokens, is_admin',
@@ -367,7 +362,7 @@ app.post('/api/admin/users', requireAuth, requireAdmin, async (req, res) => {
   if (!username || !password || username.length < 2 || password.length < 4) {
     return res.status(400).json({ error: 'Логин от 2 символов, пароль от 4' });
   }
-  const hash = await bcrypt.hash(password, 10);
+  const hash = await bcrypt.hash(password, BCRYPT_ROUNDS);
   try {
     const r = await pool.query(
       'INSERT INTO users (username, password_hash, tokens, is_admin) VALUES ($1, $2, $3, false) RETURNING id, username, tokens, is_admin',

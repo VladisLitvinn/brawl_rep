@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Learn words by chunks</title>
+  <style>
+    *,*::before,*::after{box-sizing:border-box}
+    body{margin:0;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;background:#f5f4f0;color:#2c2c2c;min-height:100vh;line-height:1.5}
+    #app{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1rem}
+    .app-container{width:100%;max-width:560px}
+    button{font:inherit;cursor:pointer;border:none;border-radius:8px;padding:0.6rem 1.2rem;background:#3d5a4c;color:#fff;transition:background .15s ease}
+    button:hover{background:#2d4a3c}
+    button:disabled{opacity:.6;cursor:not-allowed}
+    input,textarea,select{font:inherit;padding:0.5rem .75rem;border:1px solid #ccc;border-radius:6px;background:#fff}
+    input:focus,textarea:focus,select:focus{outline:none;border-color:#3d5a4c;box-shadow:0 0 0 2px rgba(61,90,76,.2)}
+    textarea{resize:vertical;min-height:120px;width:100%}
+    .label{display:block;font-weight:500;margin-bottom:.35rem;color:#444}
+    .progress-bar{height:6px;background:#e0ddd8;border-radius:3px;overflow:hidden;margin:.5rem 0 1rem}
+    .progress-bar-fill{height:100%;background:#3d5a4c;border-radius:3px;transition:width .2s ease}
+    .success-message{color:#2d6a3e;font-weight:500;margin-top:1rem}
+    .error-message{color:#b33;font-size:.95rem;margin-top:.5rem}
+    .setup-card,.training-card{background:#fff;border-radius:12px;padding:2rem;box-shadow:0 2px 12px rgba(0,0,0,.06)}
+    .setup-card h1,.training-card h1{margin:0 0 .5rem;font-size:1.5rem;font-weight:600;color:#1a1a1a}
+    .subtitle{margin:0 0 1.5rem;font-size:.95rem;color:#666}
+    .setup-card label+input,.setup-card label+select{display:block;width:100%;margin-bottom:1rem}
+    .setup-card button[type=submit]{margin-top:.5rem;width:100%;padding:.75rem}
+    .training-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem}
+    .back-btn{background:transparent;color:#3d5a4c;padding:.35rem .5rem}
+    .back-btn:hover{background:rgba(61,90,76,.1)}
+    .step-indicator{font-size:.9rem;color:#666}
+    .prompt-label{margin:.5rem 0 .35rem;font-weight:500;color:#444}
+    .display-sentence-wrap{margin-bottom:1rem}
+    .display-sentence{font-size:1.15rem;line-height:1.6;padding:1rem;background:#f8f7f5;border-radius:8px;margin-bottom:.5rem;color:#2c2c2c}
+    .speak-btn{background:transparent;color:#3d5a4c;border:1px solid #3d5a4c;padding:.4rem .75rem;font-size:.9rem}
+    .speak-btn:hover{background:rgba(61,90,76,.08)}
+    .hint-box{padding:.75rem 1rem;background:#f0efe8;border-radius:8px;margin-bottom:1rem;font-size:.95rem;border-left:3px solid #3d5a4c}
+    .hint-box strong{display:block;margin-bottom:.25rem;font-size:.85rem;color:#555}
+    .previous-step-row{margin-bottom:1rem}
+    .previous-step-row button.outline{background:transparent;color:#3d5a4c;border:1px solid #3d5a4c;margin-bottom:.5rem}
+    .previous-step-row button.outline:hover{background:rgba(61,90,76,.08)}
+    .previous-step-box{padding:.75rem 1rem;background:#f8f7f5;border-radius:8px;font-size:.95rem;border-left:3px solid #8b9a8e}
+    .previous-step-box strong{display:block;margin-bottom:.25rem;font-size:.85rem;color:#555}
+    .input-row{display:flex;gap:.5rem;align-items:flex-start}
+    .input-wrap{flex:1;position:relative}
+    .input-wrap textarea{width:100%;min-height:100px}
+    .interim-text{display:block;margin-top:.35rem;font-size:.9rem;color:#666;font-style:italic}
+    .mic-btn{flex-shrink:0;padding:.6rem .9rem;background:#5a6a5d}
+    .mic-btn:hover{background:#4a5a4d}
+    .mic-btn.listening{background:#8b3a3a;animation:pulse-mic 1s ease-in-out infinite}
+    @keyframes pulse-mic{50%{opacity:.85}}
+    .voice-error{margin-top:.35rem;font-size:.9rem}
+    .actions{display:flex;gap:.75rem;margin-top:.75rem}
+    .actions button.secondary{background:#6b7b6e}
+    .actions button.secondary:hover{background:#5a6a5d}
+    .error-detail-box{margin-top:1rem;padding:1rem 1.1rem;background:rgba(180,70,60,.08);border:1px solid rgba(180,70,60,.35);border-radius:8px;font-size:.95rem}
+    .error-detail-box strong{color:#5c3a38}
+    .error-detail-row{margin-bottom:.5rem}
+    .error-detail-row:last-of-type{margin-bottom:.75rem}
+    .error-detail-diff strong{display:block;margin-bottom:.35rem}
+    .error-detail-words{display:flex;flex-wrap:wrap;gap:.25rem .5rem;line-height:1.6}
+    .diff-word.same{color:#2d3d2f;font-weight:500}
+    .diff-word.missing{display:inline-flex;padding:.1rem .35rem;background:rgba(100,100,100,.12);border-radius:4px;border:1px dashed #999}
+    .diff-missing{color:#666;font-style:italic}
+    .diff-word.extra{display:inline-flex;padding:.1rem .35rem;background:rgba(180,70,60,.12);border-radius:4px}
+    .diff-word.diff{display:inline-flex;align-items:center;gap:.2rem;padding:.1rem .35rem;background:rgba(180,70,60,.12);border-radius:4px}
+    .diff-wrong{color:#b8463c;text-decoration:line-through}
+    .diff-arrow{color:#888;font-size:.85em}
+    .diff-expected{color:#2d6b2d;font-weight:500}
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div class="app-container" id="container"></div>
+  </div>
+  <script>
+(function () {
+  const API_BASE = '/api/english';
+  const LEVELS = [{ value: 'B1', label: 'B1' }, { value: 'B2', label: 'B2' }, { value: 'C1', label: 'C1' }];
+
+  function getSessionId() {
+    return sessionStorage.getItem('chunks_session_id') || 'default';
+  }
+  function setSessionId(id) {
+    sessionStorage.setItem('chunks_session_id', id);
+  }
+
+  async function generateExercise(opts) {
+    const sessionId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : 's' + Date.now();
+    setSessionId(sessionId);
+    const res = await fetch(API_BASE + '/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Session-Id': sessionId },
+      body: JSON.stringify({ topic: opts.topic || '', level: opts.level || 'B2', iterations: opts.iterations }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Generate failed');
+    return data;
+  }
+
+  async function validateInput(input) {
+    const sessionId = getSessionId();
+    const inputStr = (input != null && typeof input === 'string') ? input : '';
+    const res = await fetch(API_BASE + '/validate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Session-Id': sessionId },
+      body: JSON.stringify({ input: inputStr, sessionId }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Validate failed');
+    return data;
+  }
+
+  async function requestHint() {
+    const res = await fetch(API_BASE + '/validate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Session-Id': getSessionId() },
+      body: JSON.stringify({ requestHint: true }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Hint failed');
+    return data;
+  }
+
+  const SpeechRecognition = typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition);
+  function isSpeechSupported() { return !!SpeechRecognition; }
+
+  function createSpeechRecognition(onResult, onError, onEnd, onProgress, stopRef, onRestart) {
+    if (!SpeechRecognition) return { start: function () { return null; } };
+    stopRef = stopRef || {};
+    return {
+      start: function (lang, initialAccumulated) {
+        lang = lang || 'en-US';
+        initialAccumulated = initialAccumulated || '';
+        stopRef.current = false;
+        var recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = lang;
+        var accumulated = initialAccumulated;
+        var addedFinalIndices = {};
+        var currentInterim = '';
+        recognition.onresult = function (event) {
+          var results = event.results;
+          currentInterim = '';
+          for (var i = 0; i < results.length; i++) {
+            var result = results[i];
+            var transcript = (result[0] && result[0].transcript ? result[0].transcript : '').trim();
+            if (!transcript) continue;
+            if (result.isFinal) {
+              if (!addedFinalIndices[i]) {
+                addedFinalIndices[i] = true;
+                var alreadyAtEnd = accumulated.endsWith(transcript) || (accumulated && accumulated.endsWith(' ' + transcript));
+                if (!alreadyAtEnd) accumulated += accumulated ? ' ' + transcript : transcript;
+              }
+            } else {
+              currentInterim = transcript;
+            }
+          }
+          onProgress && onProgress(accumulated, currentInterim);
+        };
+        recognition.onerror = function (event) {
+          if (event.error === 'not-allowed') onError && onError(new Error('Microphone access denied.'));
+          else if (event.error === 'no-speech') onError && onError(new Error('No speech detected. Speak louder or check the mic.'));
+          else if (event.error !== 'aborted') onError && onError(new Error(event.error || 'Recognition failed.'));
+          onEnd && onEnd();
+        };
+        recognition.onend = function () {
+          if (stopRef.current) {
+            var acc = accumulated.trim();
+            var inter = currentInterim.trim();
+            var raw = (acc + (inter ? ' ' + inter : '')).trim();
+            var text = raw.replace(/\s+/g, ' ').trim();
+            if (text) {
+              var words = text.split(/\s+/);
+              for (var j = 1; j < words.length; j++) { if (words[j] !== 'I') words[j] = words[j].toLowerCase(); }
+              text = words.join(' ');
+              if (text.length > 0) text = text.charAt(0).toUpperCase() + text.slice(1);
+            }
+            if (text) onResult(text);
+            onEnd && onEnd();
+            return;
+          }
+          if (onRestart) onRestart(lang, accumulated); else recognition.start();
+        };
+        recognition.start();
+        return recognition;
+      },
+    };
+  }
+
+  function speakSentence(text) {
+    if (!text || !window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = 'en-US';
+    u.rate = 0.95;
+    window.speechSynthesis.speak(u);
+  }
+
+  function normalizeWord(w) { return (w || '').replace(/[^a-zA-Z0-9']/g, '').toLowerCase(); }
+  function getWordDiff(expectedSentence, userInput) {
+    var expectedWords = (expectedSentence || '').trim().split(/\s+/).filter(Boolean);
+    var userWords = (userInput || '').trim().split(/\s+/).filter(Boolean);
+    var maxLen = Math.max(expectedWords.length, userWords.length);
+    var items = [];
+    for (var i = 0; i < maxLen; i++) {
+      var exp = expectedWords[i];
+      var user = userWords[i];
+      var expNorm = normalizeWord(exp);
+      var userNorm = normalizeWord(user);
+      var status = 'same';
+      if (exp && user) status = expNorm === userNorm ? 'same' : 'wrong';
+      else if (exp && !user) status = 'missing';
+      else status = 'extra';
+      items.push({ index: i, expected: exp, user: user, status: status });
+    }
+    return items;
+  }
+
+  var state = {
+    screen: 'setup',
+    exercise: null,
+    loading: false,
+    error: '',
+    topic: '',
+    level: 'B2',
+    iterations: 7,
+    currentStep: 0,
+    displaySentence: '',
+    userInput: '',
+    message: '',
+    errorDetail: null,
+    hintSentence: null,
+    done: false,
+    listening: false,
+    voiceError: '',
+    voicePreview: '',
+    showPreviousStep: false,
+    recognition: null,
+    speech: null,
+    hasAutoPlayed: false,
+    voiceStopRef: { current: false },
+  };
+
+  var container = document.getElementById('container');
+
+  function renderSetup() {
+    container.innerHTML =
+      '<div class="setup-card">' +
+        '<h1>Learn words by chunks</h1>' +
+        '<p class="subtitle">Progressive sentence reconstruction. Set options and generate an exercise.</p>' +
+        '<form id="setupForm">' +
+          '<label class="label" for="topic">Topic (optional)</label>' +
+          '<input id="topic" type="text" placeholder="e.g. environment, work, travel" autocomplete="off" value="' + (state.topic || '').replace(/"/g, '&quot;') + '">' +
+          '<label class="label" for="level">CEFR level</label>' +
+          '<select id="level">' + LEVELS.map(function (l) {
+            return '<option value="' + l.value + '"' + (state.level === l.value ? ' selected' : '') + '>' + l.label + '</option>';
+          }).join('') + '</select>' +
+          '<label class="label" for="iterations">Number of steps (iterations)</label>' +
+          '<input id="iterations" type="number" min="4" max="12" value="' + (state.iterations || 7) + '">' +
+          (state.error ? '<p class="error-message">' + state.error.replace(/</g, '&lt;') + '</p>' : '') +
+          '<button type="submit" id="submitBtn">' + (state.loading ? 'Generating…' : 'Generate exercise') + '</button>' +
+        '</form>' +
+      '</div>';
+    var form = document.getElementById('setupForm');
+    var topicEl = document.getElementById('topic');
+    var levelEl = document.getElementById('level');
+    var iterEl = document.getElementById('iterations');
+    topicEl.addEventListener('input', function () { state.topic = topicEl.value; });
+    levelEl.addEventListener('change', function () { state.level = levelEl.value; });
+    iterEl.addEventListener('input', function () { state.iterations = parseInt(iterEl.value, 10) || 6; });
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      state.topic = topicEl.value.trim();
+      state.level = levelEl.value;
+      state.iterations = parseInt(iterEl.value, 10) || 6;
+      state.loading = true;
+      state.error = '';
+      renderSetup();
+      generateExercise({ topic: state.topic, level: state.level, iterations: state.iterations })
+        .then(function (data) {
+          state.exercise = {
+            sentence: data.sentence,
+            steps: data.steps,
+            currentStep: data.currentStep,
+            totalSteps: data.totalSteps,
+            displaySentence: data.steps[data.currentStep],
+          };
+          state.screen = 'training';
+          state.currentStep = data.currentStep;
+          state.displaySentence = data.steps[data.currentStep];
+          state.userInput = '';
+          state.message = '';
+          state.errorDetail = null;
+          state.hintSentence = null;
+          state.done = false;
+          state.hasAutoPlayed = false;
+          state.loading = false;
+          renderTraining();
+          if (data.sentence && !state.hasAutoPlayed) {
+            state.hasAutoPlayed = true;
+            speakSentence(data.sentence);
+          }
+        })
+        .catch(function (err) {
+          state.error = err.message || 'Failed to generate exercise.';
+          state.loading = false;
+          renderSetup();
+        });
+    });
+  }
+
+  function renderTraining() {
+    var ex = state.exercise;
+    if (!ex) { renderSetup(); return; }
+    var steps = ex.steps;
+    var total = ex.totalSteps != null ? ex.totalSteps : steps.length;
+    var progress = total > 0 ? (state.currentStep / total) * 100 : 0;
+
+    if (state.done) {
+      container.innerHTML =
+        '<div class="training-card">' +
+          '<div class="success-message" style="font-size:1.25rem">' + (state.message || 'Well done! You completed the exercise.').replace(/</g, '&lt;') + '</div>' +
+          '<button type="button" id="backBtn" style="margin-top:1rem">New exercise</button>' +
+        '</div>';
+      document.getElementById('backBtn').onclick = function () {
+        state.screen = 'setup';
+        state.exercise = null;
+        state.error = '';
+        renderSetup();
+      };
+      return;
+    }
+
+    var previousStepHtml = '';
+    if (state.currentStep >= 1) {
+      var prevSentence = steps[state.currentStep - 1];
+      previousStepHtml =
+        '<div class="previous-step-row">' +
+          '<button type="button" class="secondary outline" id="togglePrev">' + (state.showPreviousStep ? 'Hide previous step' : 'View previous step') + '</button>' +
+          (state.showPreviousStep && prevSentence ? '<div class="previous-step-box" role="status"><strong>Previous step:</strong> ' + prevSentence.replace(/</g, '&lt;') + '</div>' : '') +
+        '</div>';
+    }
+    var hintHtml = state.hintSentence ? '<div class="hint-box" role="status"><strong>Hint (previous step):</strong> ' + state.hintSentence.replace(/</g, '&lt;') + '</div>' : '';
+    var voicePreviewHtml = state.voicePreview ? '<span class="interim-text" aria-live="polite">' + state.voicePreview.replace(/</g, '&lt;') + '</span>' : '';
+    var micBtnHtml = isSpeechSupported() ? '<button type="button" class="mic-btn' + (state.listening ? ' listening' : '') + '" id="micBtn" title="' + (state.listening ? 'Stop listening' : 'Voice input') + '">' + (state.listening ? '⏹ Stop' : '🎤 Voice') + '</button>' : '';
+    var hintBtnHtml = state.currentStep >= 2 ? '<button type="button" id="hintBtn" class="secondary">Show hint</button>' : '';
+    var msgClass = state.message && state.message.indexOf('Well') === 0 ? 'success-message' : 'error-message';
+    var msgHtml = state.message ? '<p class="' + msgClass + '">' + state.message.replace(/</g, '&lt;') + '</p>' : '';
+    var errorDetailHtml = '';
+    if (state.errorDetail) {
+      var diffItems = getWordDiff(state.errorDetail.expectedSentence, state.errorDetail.userInput);
+      var diffSpans = diffItems.map(function (item) {
+        if (item.status === 'same') return '<span class="diff-word same">' + (item.user || '').replace(/</g, '&lt;') + '</span>';
+        if (item.status === 'missing') return '<span class="diff-word missing"><span class="diff-missing">' + (item.expected || '').replace(/</g, '&lt;') + '</span></span>';
+        if (item.status === 'extra') return '<span class="diff-word extra"><span class="diff-wrong">' + (item.user || '').replace(/</g, '&lt;') + '</span></span>';
+        return '<span class="diff-word diff"><span class="diff-wrong">' + (item.user || '').replace(/</g, '&lt;') + '</span><span class="diff-arrow">→</span><span class="diff-expected">' + (item.expected || '').replace(/</g, '&lt;') + '</span></span>';
+      }).join('');
+      errorDetailHtml =
+        '<div class="error-detail-box" role="status">' +
+          '<div class="error-detail-row"><strong>Expected:</strong> <span>' + (state.errorDetail.expectedSentence || '').replace(/</g, '&lt;') + '</span></div>' +
+          '<div class="error-detail-row"><strong>Your answer:</strong> <span>' + (state.errorDetail.userInput || '—').replace(/</g, '&lt;') + '</span></div>' +
+          '<div class="error-detail-diff"><strong>Where to fix:</strong><div class="error-detail-words">' + diffSpans + '</div></div>' +
+        '</div>';
+    }
+
+    container.innerHTML =
+      '<div class="training-card">' +
+        '<div class="training-header">' +
+          '<button type="button" class="back-btn" id="backBtn">← Back</button>' +
+          '<span class="step-indicator">Step ' + (state.currentStep + 1) + ' / ' + total + '</span>' +
+        '</div>' +
+        '<div class="progress-bar"><div class="progress-bar-fill" style="width:' + progress + '%"></div></div>' +
+        '<p class="prompt-label">Reconstruct the full English sentence:</p>' +
+        '<div class="display-sentence-wrap">' +
+          '<div class="display-sentence" aria-live="polite">' + (state.displaySentence || '').replace(/</g, '&lt;') + '</div>' +
+          '<button type="button" class="speak-btn secondary outline" id="speakBtn" title="Listen again">🔊 Listen again</button>' +
+        '</div>' +
+        previousStepHtml +
+        hintHtml +
+        '<form id="trainForm">' +
+          '<div class="input-row">' +
+            '<div class="input-wrap">' +
+              '<textarea id="userInput" placeholder="Type or use the mic to say the full English sentence…" aria-label="Your answer">' + (state.userInput || '').replace(/</g, '&lt;') + '</textarea>' +
+              voicePreviewHtml +
+            '</div>' +
+            micBtnHtml +
+          '</div>' +
+          (state.voiceError ? '<p class="error-message voice-error">' + state.voiceError.replace(/</g, '&lt;') + '</p>' : '') +
+          '<div class="actions">' +
+            '<button type="submit">Submit</button>' +
+            hintBtnHtml +
+          '</div>' +
+        '</form>' +
+        msgHtml +
+        errorDetailHtml +
+      '</div>';
+
+    document.getElementById('backBtn').onclick = function () {
+      if (state.recognition) try { state.recognition.stop(); } catch (_) {}
+      state.screen = 'setup';
+      state.exercise = null;
+      state.error = '';
+      renderSetup();
+    };
+    document.getElementById('speakBtn').onclick = function () { speakSentence(ex.sentence); };
+    var userInputEl = document.getElementById('userInput');
+    if (userInputEl) {
+      userInputEl.value = state.userInput;
+      userInputEl.addEventListener('input', function () { state.userInput = userInputEl.value; });
+    }
+
+    var togglePrev = document.getElementById('togglePrev');
+    if (togglePrev) {
+      togglePrev.onclick = function () {
+        state.showPreviousStep = !state.showPreviousStep;
+        renderTraining();
+      };
+    }
+
+    var trainForm = document.getElementById('trainForm');
+    if (trainForm) {
+      trainForm.addEventListener('submit', function (e) {
+        e.preventDefault();
+        state.message = '';
+        state.hintSentence = null;
+        state.errorDetail = null;
+        var textToSend = String((state.userInput || '') || (state.voicePreview || '')).trim();
+        validateInput(textToSend)
+          .then(function (result) {
+            if (result.correct) {
+              if (result.done) {
+                state.done = true;
+                state.message = 'Well done! You completed the exercise.';
+                renderTraining();
+                return;
+              }
+              state.currentStep = result.currentStep;
+              state.displaySentence = result.displaySentence != null ? result.displaySentence : steps[result.currentStep];
+              state.userInput = '';
+              renderTraining();
+            } else {
+              state.message = result.message || 'Try again. Check spelling and wording.';
+              if (result.expectedSentence != null) state.errorDetail = { expectedSentence: result.expectedSentence, userInput: textToSend || state.userInput };
+              else state.errorDetail = null;
+              renderTraining();
+            }
+          })
+          .catch(function (err) {
+            state.message = err.message || 'Validation failed.';
+            state.errorDetail = null;
+            renderTraining();
+          });
+      });
+    }
+
+    var hintBtn = document.getElementById('hintBtn');
+    if (hintBtn) {
+      hintBtn.onclick = function () {
+        state.message = '';
+        requestHint().then(function (result) {
+          if (result.hintShown && result.displaySentence) state.hintSentence = result.displaySentence;
+          else state.message = result.message || 'No hint available for this step.';
+          renderTraining();
+        }).catch(function (err) {
+          state.message = err.message || 'Failed to get hint.';
+          renderTraining();
+        });
+      };
+    }
+
+    var micBtn = document.getElementById('micBtn');
+    if (micBtn && isSpeechSupported()) {
+      if (!state.speech) state.speech = createSpeechRecognition(
+        function (text) {
+          state.listening = false;
+          state.voicePreview = '';
+          state.userInput = (state.userInput ? state.userInput + ' ' + text : text).trim();
+          state.voiceError = '';
+          renderTraining();
+        },
+        function (err) {
+          state.listening = false;
+          state.voicePreview = '';
+          state.voiceError = err.message || 'Voice input failed';
+          renderTraining();
+        },
+        function () { state.listening = false; state.voicePreview = ''; renderTraining(); },
+        function (accumulated, interim) {
+          state.voicePreview = [accumulated, interim].filter(Boolean).join(' ');
+          renderTraining();
+        },
+        state.voiceStopRef,
+        function (lang, accumulated) {
+          state.recognition = state.speech.start(lang, accumulated);
+        }
+      );
+      micBtn.onclick = function () {
+        state.voiceError = '';
+        if (state.listening) {
+          state.voiceStopRef.current = true;
+          if (state.recognition) try { state.recognition.stop(); } catch (_) {}
+          state.recognition = null;
+          state.voicePreview = '';
+          state.listening = false;
+          renderTraining();
+          return;
+        }
+        state.listening = true;
+        state.voicePreview = '';
+        state.recognition = state.speech.start('en-US');
+        renderTraining();
+      };
+    }
+  }
+
+  if (state.screen === 'setup') renderSetup();
+  else renderTraining();
+})();
+  </script>
+</body>
+</html>

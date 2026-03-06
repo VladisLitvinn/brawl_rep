@@ -14,12 +14,14 @@ services:
       interval: 3s
       timeout: 3s
       retries: 5
+    # 512 MB RAM на сервере: Postgres минимально
+    mem_limit: 128m
+    cpus: 1
 
   app:
     build: .
     ports:
       - "8888:8888"
-      - "8100:8888"   # тот же сервер: Brawl на :8888, English можно открыть как http://localhost:8100/english
     environment:
       NODE_ENV: production
       # Берутся из .env или дефолты (важно: user должен совпадать с POSTGRES_USER)
@@ -29,9 +31,15 @@ services:
       PGDATABASE: ${PGDATABASE:-brawl}
       # English Exercise (Learn words by chunks) — опционально, для генерации упражнений через OpenRouter
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      BCRYPT_ROUNDS: ${BCRYPT_ROUNDS:-8}
+      PG_POOL_MAX: ${PG_POOL_MAX:-2}
+      NODE_OPTIONS: ${NODE_OPTIONS:-"--max-old-space-size=224"}
     depends_on:
       postgres:
         condition: service_healthy
+    # 512 MB RAM: app 320m + postgres 128m ≈ 450m, остальное — ОС
+    mem_limit: 320m
+    cpus: 1
 
 volumes:
   pgdata:
