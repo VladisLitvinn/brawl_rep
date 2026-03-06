@@ -4,7 +4,8 @@
   "description": "Brawl Stars box simulator with tokens and leaderboard",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "download-assets": "node scripts/download-assets.js"
   },
   "dependencies": {
     "bcrypt": "^5.1.1",

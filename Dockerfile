@@ -9,6 +9,7 @@ COPY package.json .
 RUN npm install --omit=dev --no-audit --no-fund
 
 COPY server.js index.html brawlers.json ./
+COPY assets/ ./assets/
 COPY sounds/ ./sounds/
 COPY english/ ./english/
 COPY english_exercise/Learn_words_by_chunks/server/ ./english_exercise/Learn_words_by_chunks/server/
