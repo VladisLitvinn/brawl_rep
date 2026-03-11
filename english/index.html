@@ -31,11 +31,10 @@
     .step-indicator{font-size:.9rem;color:#666}
     .prompt-label{margin:.5rem 0 .35rem;font-weight:500;color:#444}
     .display-sentence-wrap{margin-bottom:1rem}
-    .display-sentence{font-size:1.15rem;line-height:1.6;padding:1rem;background:#f8f7f5;border-radius:8px;margin-bottom:.5rem;color:#2c2c2c}
+    .display-sentence{font-size:1.15rem;line-height:1.6;padding:1rem;background:#f8f7f5;border-radius:8px;margin-bottom:.25rem;color:#2c2c2c}
+    .ipa-line{font-size:.95rem;line-height:1.6;padding:0 1rem 1rem 1rem;color:#555;font-family:Georgia,serif}
     .speak-btn{background:transparent;color:#3d5a4c;border:1px solid #3d5a4c;padding:.4rem .75rem;font-size:.9rem}
     .speak-btn:hover{background:rgba(61,90,76,.08)}
-    .hint-box{padding:.75rem 1rem;background:#f0efe8;border-radius:8px;margin-bottom:1rem;font-size:.95rem;border-left:3px solid #3d5a4c}
-    .hint-box strong{display:block;margin-bottom:.25rem;font-size:.85rem;color:#555}
     .previous-step-row{margin-bottom:1rem}
     .previous-step-row button.outline{background:transparent;color:#3d5a4c;border:1px solid #3d5a4c;margin-bottom:.5rem}
     .previous-step-row button.outline:hover{background:rgba(61,90,76,.08)}
@@ -108,17 +107,6 @@
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Validate failed');
-    return data;
-  }
-
-  async function requestHint() {
-    const res = await fetch(API_BASE + '/validate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Session-Id': getSessionId() },
-      body: JSON.stringify({ requestHint: true }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Hint failed');
     return data;
   }
 
@@ -199,6 +187,84 @@
   }
 
   function normalizeWord(w) { return (w || '').replace(/[^a-zA-Z0-9']/g, '').toLowerCase(); }
+
+  var ipaDictCache = null;
+  var ipaDictLoadPromise = null;
+  var IPA_ASCII_TO_UNICODE = {
+    '@': '\u0259', '0': '\u0252', '3': '\u025C', 'I': '\u026A', 'U': '\u028A', 'V': '\u028C',
+    'T': '\u03B8', 'D': '\u00F0', 'S': '\u0283', 'Z': '\u0292', 'N': '\u014B', 'R': '\u0279',
+    'O': '\u0254', 'A': '\u0251', 'eI': '\u025B\u026A', 'e@': '\u025B\u0259', 'aI': '\u0251\u026A',
+    'aU': '\u0251\u028A', 'OI': '\u0254\u026A', '@U': '\u0259\u028A', 'I@': '\u026A\u0259',
+    'U@': '\u028A\u0259', 'i': '\u0069', 'u': '\u0075', 'e': '\u0065', 'o': '\u006F', 'E': '\u025B', '&': '\u00E6'
+  };
+  function asciiToIpa(str) {
+    if (!str || typeof str !== 'string') return str;
+    var out = '';
+    for (var i = 0; i < str.length; i++) {
+      var c = str[i];
+      var two = str.slice(i, i + 2);
+      if (IPA_ASCII_TO_UNICODE[two]) { out += IPA_ASCII_TO_UNICODE[two]; i++; continue; }
+      if (IPA_ASCII_TO_UNICODE[c] !== undefined) out += IPA_ASCII_TO_UNICODE[c];
+      else if (c === "'") out += '\u02C8';
+      else out += c;
+    }
+    return out;
+  }
+  function loadIpaDict() {
+    if (ipaDictCache) return Promise.resolve(ipaDictCache);
+    if (ipaDictLoadPromise) return ipaDictLoadPromise;
+    ipaDictLoadPromise = fetch('ipa-dictionary.json')
+      .then(function (r) { return r.ok ? r.json() : {}; })
+      .then(function (d) { ipaDictCache = d || {}; return ipaDictCache; })
+      .catch(function () { ipaDictCache = {}; return ipaDictCache; });
+    return ipaDictLoadPromise;
+  }
+  function isEnglishWord(token) {
+    var core = (token || '').trim().replace(/^[^a-zA-Z']+|[^a-zA-Z']+$/g, '');
+    return core.length > 0 && /^[a-zA-Z]+['a-zA-Z]*$/.test(core);
+  }
+  function getIpaForWord(word, dict) {
+    if (!word || !dict) return null;
+    var w = word.replace(/^[^a-zA-Z']+|[^a-zA-Z']+$/g, '');
+    if (!w) return null;
+    var lower = w.toLowerCase();
+    var tryList = [lower, w, word];
+    var clean = lower.replace(/'/g, '');
+    if (clean !== lower) tryList.push(clean, w.replace(/'/g, ''));
+    if (/ing$/.test(lower)) {
+      tryList.push(lower.replace(/ing$/, ''), lower.replace(/ing$/, 'e'));
+      tryList.push(lower.replace(/lling$/, 'l'), lower.replace(/ling$/, 'l'));
+    }
+    if (/ed$/.test(lower)) {
+      tryList.push(lower.replace(/ed$/, ''), lower.replace(/d$/, ''));
+      tryList.push(lower.replace(/ied$/, 'y'));
+    }
+    if (/es$/.test(lower)) tryList.push(lower.replace(/es$/, ''), lower.replace(/ses$/, 's'));
+    if (/s$/.test(lower) && lower.length > 2) tryList.push(lower.replace(/s$/, ''));
+    if (/ll/.test(lower)) tryList.push(lower.replace(/ll/g, 'l'));
+    if (/l([inged]+)$/.test(lower) && lower.indexOf('ll') === -1) tryList.push(lower.replace(/([aeiou])l([inged]+)$/, '$1ll$2'));
+    if (/ing$/.test(lower) && lower.indexOf('ll') === -1) tryList.push(lower.replace(/([aeiou])ling$/, '$1lling'));
+    for (var i = 0; i < tryList.length; i++) {
+      var key = tryList[i];
+      if (key && dict[key] !== undefined) return dict[key];
+    }
+    return null;
+  }
+  function buildSentenceIpaTokens(sentence, dict) {
+    if (!sentence || typeof sentence !== 'string') return [];
+    var tokens = sentence.trim().split(/\s+/);
+    var result = [];
+    for (var i = 0; i < tokens.length; i++) {
+      var token = tokens[i];
+      if (isEnglishWord(token)) {
+        var ipa = dict ? getIpaForWord(token, dict) : null;
+        result.push({ type: 'word', text: token, ipa: ipa ? asciiToIpa(ipa) : null });
+      } else {
+        result.push({ type: 'placeholder', text: token, ipa: null });
+      }
+    }
+    return result;
+  }
   function getWordDiff(expectedSentence, userInput) {
     var expectedWords = (expectedSentence || '').trim().split(/\s+/).filter(Boolean);
     var userWords = (userInput || '').trim().split(/\s+/).filter(Boolean);
@@ -231,7 +297,6 @@
     userInput: '',
     message: '',
     errorDetail: null,
-    hintSentence: null,
     done: false,
     listening: false,
     voiceError: '',
@@ -293,10 +358,10 @@
           state.userInput = '';
           state.message = '';
           state.errorDetail = null;
-          state.hintSentence = null;
           state.done = false;
           state.hasAutoPlayed = false;
           state.loading = false;
+          loadIpaDict();
           renderTraining();
           if (data.sentence && !state.hasAutoPlayed) {
             state.hasAutoPlayed = true;
@@ -314,6 +379,9 @@
   function renderTraining() {
     var ex = state.exercise;
     if (!ex) { renderSetup(); return; }
+    if (state.displaySentence && !ipaDictCache && !state.done) {
+      loadIpaDict().then(function () { renderTraining(); });
+    }
     var steps = ex.steps;
     var total = ex.totalSteps != null ? ex.totalSteps : steps.length;
     var progress = total > 0 ? (state.currentStep / total) * 100 : 0;
@@ -342,10 +410,8 @@
           (state.showPreviousStep && prevSentence ? '<div class="previous-step-box" role="status"><strong>Previous step:</strong> ' + prevSentence.replace(/</g, '&lt;') + '</div>' : '') +
         '</div>';
     }
-    var hintHtml = state.hintSentence ? '<div class="hint-box" role="status"><strong>Hint (previous step):</strong> ' + state.hintSentence.replace(/</g, '&lt;') + '</div>' : '';
     var voicePreviewHtml = state.voicePreview ? '<span class="interim-text" aria-live="polite">' + state.voicePreview.replace(/</g, '&lt;') + '</span>' : '';
     var micBtnHtml = isSpeechSupported() ? '<button type="button" class="mic-btn' + (state.listening ? ' listening' : '') + '" id="micBtn" title="' + (state.listening ? 'Stop listening' : 'Voice input') + '">' + (state.listening ? '⏹ Stop' : '🎤 Voice') + '</button>' : '';
-    var hintBtnHtml = state.currentStep >= 2 ? '<button type="button" id="hintBtn" class="secondary">Show hint</button>' : '';
     var msgClass = state.message && state.message.indexOf('Well') === 0 ? 'success-message' : 'error-message';
     var msgHtml = state.message ? '<p class="' + msgClass + '">' + state.message.replace(/</g, '&lt;') + '</p>' : '';
     var errorDetailHtml = '';
@@ -375,10 +441,21 @@
         '<p class="prompt-label">Reconstruct the full English sentence:</p>' +
         '<div class="display-sentence-wrap">' +
           '<div class="display-sentence" aria-live="polite">' + (state.displaySentence || '').replace(/</g, '&lt;') + '</div>' +
+          (function () {
+            var toks = buildSentenceIpaTokens(state.displaySentence, ipaDictCache);
+            var parts = [];
+            for (var i = 0; i < toks.length; i++) {
+              var t = toks[i];
+              if (t.type === 'placeholder') { parts.push(''); }
+              else if (t.ipa) { var ipaEsc = (t.ipa || '').replace(/</g, '&lt;').replace(/>/g, '&gt;'); parts.push(ipaEsc); }
+              else { parts.push(''); }
+            }
+            var line = parts.filter(Boolean).join(' ');
+            return line ? '<div class="ipa-line" aria-label="IPA">/' + line + '/</div>' : '';
+          }()) +
           '<button type="button" class="speak-btn secondary outline" id="speakBtn" title="Listen again">🔊 Listen again</button>' +
         '</div>' +
         previousStepHtml +
-        hintHtml +
         '<form id="trainForm">' +
           '<div class="input-row">' +
             '<div class="input-wrap">' +
@@ -390,7 +467,6 @@
           (state.voiceError ? '<p class="error-message voice-error">' + state.voiceError.replace(/</g, '&lt;') + '</p>' : '') +
           '<div class="actions">' +
             '<button type="submit">Submit</button>' +
-            hintBtnHtml +
           '</div>' +
         '</form>' +
         msgHtml +
@@ -424,7 +500,6 @@
       trainForm.addEventListener('submit', function (e) {
         e.preventDefault();
         state.message = '';
-        state.hintSentence = null;
         state.errorDetail = null;
         var textToSend = String((state.userInput || '') || (state.voicePreview || '')).trim();
         validateInput(textToSend)
@@ -453,21 +528,6 @@
             renderTraining();
           });
       });
-    }
-
-    var hintBtn = document.getElementById('hintBtn');
-    if (hintBtn) {
-      hintBtn.onclick = function () {
-        state.message = '';
-        requestHint().then(function (result) {
-          if (result.hintShown && result.displaySentence) state.hintSentence = result.displaySentence;
-          else state.message = result.message || 'No hint available for this step.';
-          renderTraining();
-        }).catch(function (err) {
-          state.message = err.message || 'Failed to get hint.';
-          renderTraining();
-        });
-      };
     }
 
     var micBtn = document.getElementById('micBtn');
